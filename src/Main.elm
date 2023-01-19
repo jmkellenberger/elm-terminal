@@ -3,7 +3,8 @@ module Main exposing (Mode, Model, Msg, main)
 import Browser
 import Html exposing (Html, div, li, p, text, ul)
 import Html.Attributes as Attributes
-import Keyboard exposing (Key(..))
+import Keyboard exposing (Key(..), KeyChange(..))
+import VitePluginHelper
 
 
 type Mode
@@ -13,7 +14,10 @@ type Mode
 
 type alias Model =
     { pressedKeys : List Key
-    , buffer : List String
+    , keyChanges : List Key
+    , inputBuffer : List String
+    , commandBuffer : List String
+    , history : List String
     , mode : Mode
     }
 
@@ -36,7 +40,10 @@ shiftPressed model =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { pressedKeys = []
-      , buffer = []
+      , keyChanges = []
+      , inputBuffer = []
+      , commandBuffer = []
+      , history = [ "Welcome, User." ]
       , mode = Command
       }
     , Cmd.none
@@ -51,33 +58,68 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         KeyboardMsg keyMsg ->
-            ( { model
-                | pressedKeys = Keyboard.update keyMsg model.pressedKeys
-              }
-                |> keyHandler
+            let
+                ( pressedKeys, maybeKeyChange ) =
+                    Keyboard.updateWithKeyChange Keyboard.anyKeyOriginal keyMsg model.pressedKeys
+
+                keyChanges : List Key
+                keyChanges =
+                    case maybeKeyChange of
+                        Just keyChange ->
+                            case keyChange of
+                                KeyDown key ->
+                                    key :: model.keyChanges
+
+                                _ ->
+                                    []
+
+                        Nothing ->
+                            []
+            in
+            ( keyHandler
+                { model
+                    | pressedKeys = pressedKeys
+                    , keyChanges = keyChanges
+                }
             , Cmd.none
             )
 
 
 keyHandler : Model -> Model
 keyHandler model =
-    case ( model.mode, List.head model.pressedKeys ) of
+    case ( model.mode, List.head model.keyChanges ) of
         ( Input, Just key ) ->
             case key of
                 Character c ->
-                    { model | buffer = c :: model.buffer }
+                    if shiftPressed model then
+                        { model | inputBuffer = String.toUpper c :: model.inputBuffer }
+
+                    else
+                        { model | inputBuffer = c :: model.inputBuffer }
 
                 Spacebar ->
-                    { model | buffer = " " :: model.buffer }
+                    { model | inputBuffer = " " :: model.inputBuffer }
 
                 Delete ->
-                    { model | buffer = [] }
+                    { model | inputBuffer = [] }
 
                 Enter ->
-                    { model | buffer = [] }
+                    { model
+                        | inputBuffer = []
+                        , history =
+                            List.foldl
+                                (++)
+                                ""
+                                model.inputBuffer
+                                :: model.history
+                    }
 
                 Backspace ->
-                    { model | buffer = List.drop 1 model.buffer }
+                    if shiftPressed model then
+                        { model | inputBuffer = [] }
+
+                    else
+                        { model | inputBuffer = List.drop 1 model.inputBuffer }
 
                 Escape ->
                     { model | mode = Command }
@@ -87,7 +129,7 @@ keyHandler model =
 
         ( Command, Just key ) ->
             case key of
-                Character "I" ->
+                Character "i" ->
                     { model | mode = Input }
 
                 _ ->
@@ -102,11 +144,11 @@ view model =
     div [ Attributes.class "crt", Attributes.id "terminal" ]
         [ div [ Attributes.id "panels" ]
             [ div [ Attributes.id "left-panel" ]
-                [ text "Welcome, User."
-                , viewBuffer model
+                [ viewHistory model
+                , viewInputBuffer model
                 ]
             , div [ Attributes.id "right-panel" ]
-                [ div [ Attributes.id "upper-right-panel" ] [ text "PLACEHOLDER TEXT" ]
+                [ div [ Attributes.id "upper-right-panel" ] [ Html.img [ Attributes.id "map", Attributes.src <| VitePluginHelper.asset "/src/assets/map.svg?" ] [] ]
                 , div [ Attributes.id "bottom-right-panel" ]
                     [ p [] [ text ("Enter: " ++ Debug.toString (enterPressed model)) ]
                     , p [] [ text ("Escape: " ++ Debug.toString (escapePressed model)) ]
@@ -125,12 +167,22 @@ view model =
         ]
 
 
-viewBuffer : Model -> Html msg
-viewBuffer model =
+viewHistory : Model -> Html msg
+viewHistory model =
+    div []
+        (List.map
+            (\command -> p [] [ text command ])
+         <|
+            List.reverse model.history
+        )
+
+
+viewInputBuffer : Model -> Html msg
+viewInputBuffer model =
     let
         input : String
         input =
-            List.foldl (++) "" model.buffer
+            List.foldl (++) "" model.inputBuffer
     in
     div [ Attributes.id "prompt" ] [ text ("~/ > " ++ input) ]
 

@@ -1,10 +1,13 @@
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
 * {
   margin: 0;
   box-sizing: border-box;
 }
 
+
 body {
-  font: 1.3rem Inconsolata, monospace;
+  font: 1.5rem 'VT323', monospace;
   color: turquoise;
   background-color: black;
   background-image: radial-gradient(#002b36, black 120%);
@@ -32,18 +35,24 @@ body {
 
 #left-panel {
   border-right: 10px solid darkslategrey;
-  width: 50vw;
+  width: 50%;
   overflow-wrap: break-word;
 }
 
 #right-panel {
-  width: 50vw;
+  display: flex;
+  width: 50%;
+  flex-direction: column;
 }
 
 #upper-right-panel {
   border-bottom: 10px solid darkslategray;
   height: 45vh;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
 }
+
 
 #bottom-right-panel {
   height: 45vh;
